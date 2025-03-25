@@ -1,0 +1,77 @@
+public function dgenerategroups(Request $request){
+
+		$selectedplayers= $request->players;
+		
+/*$players = DB::table('player_details')
+->join('tb_event_details','tb_event_details.player_id','player_details.id')
+->whereIn('player_details.id',$selectedplayers)
+->groupBy('player_details.id')
+->get(['player_details.*','tb_event_details.event_id','tb_event_details.discipline_id']);*/
+//$team_size = count($selectedplayers);
+
+
+
+		$playerData = session()->get('playerdata');
+[$getPlayers, $remainingPlayers] = $playerData->partition(function ($iplayer) use ($selectedplayers) {
+    return in_array($iplayer->id, $selectedplayers);
+});
+$players= $getPlayers;
+$team_size = count($players);
+
+		//dd($players);
+		//$gamesize = DB::table('tb_discpline')->where('game_id',$players[0]->game_type)->first(['team_size']);
+		
+		$shuffledPlayers = $players->shuffle();
+		$teams = $shuffledPlayers->chunk($team_size);
+		//$finalTeam = $teams->pop();
+		//dd($finalTeam);
+		$lastteam = [];
+		$lcount = count($remainingPlayers);
+		
+			
+			
+
+			// Forward to the next level
+			foreach ($remainingPlayers as $player) {   
+				$lastteam[] = $player;
+			} 
+		
+		
+		
+		DB::beginTransaction(); 
+		foreach ($teams as $index => $team) {   
+			$ptid = Auth::user()->id;
+			$teamname = 'Group '. ($index + 1);
+			
+			
+			
+			
+			//$teamModel = Team::create(['name' => 'Team ' . ($index + 1)]);     
+			DB::insert('insert into tb_teams (team_name, created_by) values (?, ? )', array($teamname, $ptid  ));	
+			
+			$lastid = DB::getPdo()->lastInsertId();
+			
+			foreach ($team as $player) {         
+				//$player->update(['team_id' => $teamModel->id]); 
+				
+				/*if(!isset($player->event_id)){
+					DB::table('tb_game_details')->where('player_id', $player->id)->where('game_type', $player->game_type)->where('game_sub_type', $player->game_sub_type)->update(['is_team_select' => 1]);
+					
+					DB::insert('insert into tb_selected_players (player_id, player_nm, game_id, team_nm, gender) values (?, ?, ?, ?, ? )', array($player->id, $player->player_nm, $player->game_type, $lastid, $player->gender  ));	
+				}else{*/
+					DB::table('tb_event_details')->where('discipline_id', $player->game_type)->where('player_id', $player->id)->where('event_id', $player->event_id)->update(['is_team_select' => 1]);
+					
+					DB::insert('insert into tb_selected_players (player_id, player_nm, event_id, game_id, team_nm, gender) values (?, ?, ?, ?, ?, ? )', array($player->id, $player->player_nm, $player->event_id, $player->game_type, $lastid, $player->gender  ));	
+				//}
+				
+			} 
+		}
+		
+		DB::commit();
+		
+		session()->forget('playerdata');
+		
+		
+		return response()->json(['lastteam' => $lastteam, 'lcount' => $lcount]);
+		
+	}
